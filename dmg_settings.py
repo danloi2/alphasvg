@@ -1,27 +1,24 @@
 import os.path
 
-# Configuración de rutas
 base_dir = os.path.abspath('.')
 
-# 1. CONTENIDO REAL
+# 1. CONTENIDO REAL (Cambiamos gui_main.app por FondoTransparente.app)
 files = {
-    os.path.join(base_dir, 'dist/gui_main.app'): 'gui_main.app',
-    os.path.join(base_dir, 'dist/gui_main/_internal'): '_internal'
+    os.path.join(base_dir, 'dist/FondoTransparente.app'): 'FondoTransparente.app',
+    os.path.join(base_dir, 'dist/FondoTransparente/_internal'): '_internal'
 }
 
-# 2. ENLACES SIMBÓLICOS (Esto es lo que te faltaba)
+# 2. ENLACES SIMBÓLICOS
 symlinks = {
     'Aplicaciones': '/Applications'
 }
 
-# 3. POSICIONES (Asegúrate de que los nombres coincidan con las llaves de arriba)
+# 3. POSICIONES (Asegúrate de que los nombres coincidan)
 icon_locations = {
-    'gui_main.app': (140, 120),
+    'FondoTransparente.app': (140, 120),
     'Aplicaciones': (460, 120),
-    '_internal': (300, 400) # Lejos para que no moleste
+    '_internal': (300, 400)
 }
 
-# 4. APARIENCIA
 window_rect = ((200, 200), (600, 350))
 icon_size = 100
-volume_name = 'Instalador Transparente'
