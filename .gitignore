@@ -1,0 +1,39 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# --- PyInstaller & Compilación ---
+# No subas las carpetas de salida ni los archivos temporales de construcción
+build/
+dist/
+area_visual/
+packing_area/
+*.spec
+
+# --- dmgbuild ---
+# No subas el instalador final, se genera localmente
+*.dmg
+dmg_settings.pyc
+
+# --- macOS System Files ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Trashes
+.Spotlight-V100
+.fseventsd
+
+# --- IDEs ---
+.vscode/
+.idea/
+
+# --- Otros ---
+*.log
+logo.iconset/
