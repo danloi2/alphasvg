@@ -62,17 +62,18 @@ jobs:
           cd rust
           ORT_STRATEGY=download cargo build --release
 
-          echo "Archivos en target/release:"
-          ls -l target/release
-
           echo "Buscando libonnxruntime..."
-          SO_PATH=$(find target -type f -name "libonnxruntime.so*" | head -n1)
+          SO_PATH=$(find . -type f -name "libonnxruntime.so*" 2>/dev/null | head -n1)
+
           if [ -z "$SO_PATH" ]; then
             echo "ERROR: libonnxruntime no encontrada"
-            find target -type f
+            find . -type f -name "*onnx*" 
             exit 1
           fi
+
+          echo "Encontrada en: $SO_PATH"
           SO_NAME=$(basename "$SO_PATH")
+
           cp "$SO_PATH" target/release/
 
           cargo install cargo-generate-rpm
@@ -82,6 +83,7 @@ jobs:
           cp target/release/transparente_rust ../dist_fedora/
           cp target/release/$SO_NAME ../dist_fedora/
           cp target/generate-rpm/*.rpm ../dist_fedora/
+
 
       - name: Upload Fedora Artifact
         uses: actions/upload-artifact@v4
