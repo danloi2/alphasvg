@@ -42,30 +42,27 @@ jobs:
           copy-item rust/target/release/transparente_rust.exe dist_win/
           get-childitem -path rust/target -filter *.dll -recurse | copy-item -destination dist_win/ -force
 
-      # --- LINUX: Corrección dinámica de Assets para RPM ---
       - name: Prepare Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir dist_linux
-          # 1. Buscar la librería real de ONNX (ej. libonnxruntime.so.1.20.1)
+
+          # 1. Buscar la librería real de ONNX
           SO_PATH=$(find rust/target -name "libonnxruntime.so*" -type f -print -quit)
-          
-          if [ -n "$SO_PATH" ]; then
-            SO_NAME=$(basename "$SO_PATH")
-            cp "$SO_PATH" rust/target/release/
-            echo "Librería detectada: $SO_NAME"
-            
-            # 2. Inyectar el asset exacto en Cargo.toml para que cargo-generate-rpm no falle
-            # Buscamos la línea del binario y añadimos la de la .so justo debajo
-            sed -i "/dest = \"\/usr\/bin\/transparente_rust\"/a \    { source = \"target/release/$SO_NAME\", dest = \"/usr/lib64/$SO_NAME\", mode = \"644\" }" rust/Cargo.toml
-          fi
-          
-          # 3. Generar el RPM
+          SO_NAME=$(basename "$SO_PATH")
+          cp "$SO_PATH" rust/target/release/
+
+          # 2. Instalar herramienta
           cargo install cargo-generate-rpm
+
+          # 3. GENERAR EL RPM PASANDO LOS ARCHIVOS POR LÍNEA DE COMANDOS
+          # Esto ignora lo que haya en el Cargo.toml y usa lo que le digamos aquí
           cd rust
-          cargo generate-rpm
-          
-          # 4. Copiar resultados finales
+          cargo generate-rpm \
+            --payload-file "target/release/transparente_rust=/usr/bin/transparente_rust" \
+            --payload-file "target/release/$SO_NAME=/usr/lib64/$SO_NAME"
+
+          # 4. Mover resultados
           cp target/generate-rpm/*.rpm ../dist_linux/
           cp target/release/transparente_rust ../dist_linux/
           cp target/release/libonnxruntime.so* ../dist_linux/ 2>/dev/null || true
@@ -78,9 +75,9 @@ jobs:
           cp rust/target/release/transparente_rust dist_mac/AppContent/
           find rust/target -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \; 2>/dev/null || true
           chmod +x dist_mac/AppContent/transparente_rust
-          
+
           brew install create-dmg
-          
+
           create-dmg \
             --volname "Instalador Transparente" \
             --window-pos 200 120 \

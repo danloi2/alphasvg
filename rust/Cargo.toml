@@ -29,12 +29,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 eframe = { version = "0.33", features = ["wayland", "x11"] }
 
-[package.metadata.generate-rpm]
-assets = [
-    { source = "target/release/transparente_rust", dest = "/usr/bin/transparente_rust", mode = "755" }
-    # Quitamos la línea de libonnx de aquí, la añadiremos dinámicamente
-]
-
 [package.metadata.generate-rpm.requires]
 "libwayland-client" = ">= 1.20"
 "libxkbcommon" = ">= 1.0"
