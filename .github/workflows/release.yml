@@ -31,46 +31,51 @@ jobs:
 
       - name: Build Release
         working-directory: ./rust
+        # ORT_STRATEGY obliga al crate 'ort' a descargar la .so/.dll/.dylib en target/release
+        env:
+          ORT_STRATEGY: download
         run: cargo build --release
 
-      # --- WINDOWS: Busca onnxruntime.dll recursivamente ---
+      # --- WINDOWS: Busca onnxruntime.dll y empaqueta ---
       - name: Prepare Windows
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           mkdir dist_win
           copy-item rust/target/release/transparente_rust.exe dist_win/
+          # El flag -recurse asegura encontrar las librerías de IA descargadas
           get-childitem -path rust/target -filter *.dll -recurse | copy-item -destination dist_win/ -force
 
-      # --- LINUX: Generación de RPM Robusta con Verificación ---
+      # --- LINUX: Generación de RPM con inyección de .so ---
       - name: Prepare Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir dist_linux
-
-          # 1. Buscar la librería real de ONNX y copiarla a release
+          
+          # 1. Localizar la librería dinámica (ahora debería estar en target/release)
           SO_PATH=$(find rust/target -name "libonnxruntime.so*" -type f -print -quit)
+          
           if [ -z "$SO_PATH" ]; then
             echo "ERROR: No se encontró libonnxruntime.so"
             exit 1
           fi
+          
           SO_NAME=$(basename "$SO_PATH")
           cp "$SO_PATH" rust/target/release/
-          echo "Librería encontrada y copiada: $SO_NAME"
+          echo "Librería motor de IA detectada: $SO_NAME"
 
-          # 2. Instalar herramienta
+          # 2. Instalar herramienta de empaquetado
           cargo install cargo-generate-rpm
 
-          # 3. GENERAR EL RPM
-          # Combinamos lo que hay en Cargo.toml con la inyección forzada del .so
+          # 3. Generar el RPM inyectando el archivo dinámico
           cd rust
           cargo generate-rpm --payload-file "target/release/$SO_NAME=/usr/lib64/$SO_NAME"
 
-          # 4. VERIFICACIÓN (Esto saldrá en los logs de GitHub)
-          echo "Contenido del RPM generado:"
+          # 4. Verificación visual en los logs de GitHub
+          echo "Contenido del paquete RPM:"
           rpm -qpl target/generate-rpm/*.rpm
 
-          # 5. Mover resultados
+          # 5. Mover a carpeta de salida
           cp target/generate-rpm/*.rpm ../dist_linux/
           cp target/release/transparente_rust ../dist_linux/
           cp target/release/$SO_NAME ../dist_linux/
@@ -81,6 +86,7 @@ jobs:
         run: |
           mkdir -p dist_mac/AppContent
           cp rust/target/release/transparente_rust dist_mac/AppContent/
+          # Capturamos las librerías de Mac descargadas por 'ort'
           find rust/target -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \; 2>/dev/null || true
           chmod +x dist_mac/AppContent/transparente_rust
 
@@ -95,7 +101,7 @@ jobs:
             "dist_mac/transparente_rust.dmg" \
             "dist_mac/AppContent/"
 
-      # --- SUBIDA ---
+      # --- SUBIDA DE ARTEFACTOS ---
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
