@@ -2,6 +2,9 @@
 name = "transparente_rust"
 version = "0.1.0"
 edition = "2024"
+authors = ["Daniel Losada <daniel.losada@ehu.eus>"]
+description = "Aplicacion de IA de conversión de texto a imágenes con fondo transparente"
+license = "MIT"
 
 [dependencies]
 image = "0.25"
@@ -24,8 +27,14 @@ dirs = "6.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-# Añade X11 y Wayland solo cuando compiles en Linux
 eframe = { version = "0.33", features = ["wayland", "x11"] }
 
+[package.metadata.rpm.files]
+# Rutas correctas para el CI (relativas a la ubicacion del Cargo.toml)
+"target/release/transparente_rust" = { path = "/usr/bin/transparente_rust" }
+"target/release/*.so*" = { path = "/usr/lib64/" }
 
-
+[package.metadata.rpm.deps]
+"wayland" = ">= 1.20"
+"libxkbcommon" = ">= 1.0"
+"openssl-libs" = "*"
