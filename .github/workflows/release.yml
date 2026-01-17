@@ -11,20 +11,13 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: transparente_rust-linux
-            # En Linux solo necesitamos el binario
-            binary_path: rust/target/release/transparente_rust
-          
+            binary_name: transparente_rust
           - os: windows-latest
             artifact_name: transparente_rust-windows
-            # En Windows incluimos el .exe y las .dll (vital para ONNX)
-            binary_path: |
-              rust/target/release/*.exe
-              rust/target/release/*.dll
-          
+            binary_name: transparente_rust.exe
           - os: macos-latest
             artifact_name: transparente_rust-macos
-            # En Mac solo necesitamos el binario
-            binary_path: rust/target/release/transparente_rust
+            binary_name: transparente_rust
 
     steps:
       - name: Checkout code
@@ -34,20 +27,52 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libegl1-mesa-dev libdbus-1-dev libssl-dev
+          sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libegl1-mesa-dev libdbus-1-dev libssl-dev zip
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Build Release
         working-directory: ./rust
         run: cargo build --release
 
+      # --- EMPAQUETADO WINDOWS ---
+      - name: Create Zip (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          mkdir dist
+          copy-item rust/target/release/transparente_rust.exe dist/
+          get-childitem -path rust/target -filter *.dll -recurse | copy-item -destination dist/ -force
+          compress-archive -path dist/* -destinationpath transparente_rust-windows.zip
+
+      # --- EMPAQUETADO LINUX (Con script de auto-arranque) ---
+      - name: Create Zip (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir dist
+          cp rust/target/release/transparente_rust dist/
+          find rust/target -name "*.so*" -exec cp {} dist/ \; 2>/dev/null || true
+          # Crear script de lanzamiento
+          echo '#!/bin/bash' > dist/ejecutar.sh
+          echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:.' >> dist/ejecutar.sh
+          echo './transparente_rust' >> dist/ejecutar.sh
+          chmod +x dist/ejecutar.sh dist/transparente_rust
+          cd dist && zip -r ../transparente_rust-linux.zip .
+
+      # --- EMPAQUETADO MACOS ---
+      - name: Create Zip (Mac)
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir dist
+          cp rust/target/release/transparente_rust dist/
+          find rust/target -name "*.dylib*" -exec cp {} dist/ \; 2>/dev/null || true
+          chmod +x dist/transparente_rust
+          cd dist && zip -r ../transparente_rust-macos.zip .
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.binary_path }}
+          path: ./*.zip
           if-no-files-found: error
