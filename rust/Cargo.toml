@@ -31,14 +31,11 @@ eframe = { version = "0.33", features = ["wayland", "x11"] }
 
 [package.metadata.generate-rpm]
 assets = [
-    # Solo el binario
-    { source = "target/release/transparente_rust", dest = "/usr/bin/transparente_rust", mode = "755" },
-    # Solo las librerías de ONNX/IA (filtramos para no meter macros de Rust)
-    { source = "target/release/libonnx*.so*", dest = "/usr/lib64/", mode = "644" }
+    { source = "target/release/transparente_rust", dest = "/usr/bin/transparente_rust", mode = "755" }
+    # Quitamos la línea de libonnx de aquí, la añadiremos dinámicamente
 ]
 
 [package.metadata.generate-rpm.requires]
-# Estos son los nombres reales de los paquetes en Fedora 41/42/43
 "libwayland-client" = ">= 1.20"
 "libxkbcommon" = ">= 1.0"
 "openssl-libs" = "*"
