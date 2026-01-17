@@ -29,6 +29,17 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 [target.'cfg(target_os = "linux")'.dependencies]
 eframe = { version = "0.33", features = ["wayland", "x11"] }
 
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/transparente_rust", dest = "/usr/bin/transparente_rust", mode = "755" }
+]
+
+[package.metadata.generate-rpm.requires]
+"libwayland-client" = ">= 1.20"
+"libxkbcommon" = ">= 1.0"
+"openssl-libs" = "*"
+"mesa-libEGL" = "*"
+
 [package.metadata.generate-rpm.requires]
 "libwayland-client" = ">= 1.20"
 "libxkbcommon" = ">= 1.0"
