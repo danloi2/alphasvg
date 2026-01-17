@@ -1,112 +1,70 @@
-name: Build Multiplatform
-on: [push]
+name: Build Transparente Rust
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact_name: transparente_rust-linux
-          - os: windows-latest
-            artifact_name: transparente_rust-windows
-          - os: macos-latest
-            artifact_name: transparente_rust-macos
+
+  build-fedora:
+    name: Build RPM Fedora
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:39
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Linux Dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libegl1-mesa-dev libdbus-1-dev libssl-dev rpm
+          dnf update -y
+          dnf install -y \
+            gcc gcc-c++ make \
+            openssl-devel \
+            libX11-devel libxkbcommon-devel wayland-devel mesa-libEGL-devel \
+            dbus-devel \
+            rpm-build rpmdevtools \
+            curl git
+
+      - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y
+          source $HOME/.cargo/env
 
-      - name: Build Release
-        working-directory: ./rust
-        # ORT_STRATEGY obliga al crate 'ort' a descargar la .so/.dll/.dylib en target/release
+      - name: Build
+        working-directory: rust
         env:
           ORT_STRATEGY: download
-        run: cargo build --release
-
-      # --- WINDOWS: Busca onnxruntime.dll y empaqueta ---
-      - name: Prepare Windows
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
         run: |
-          mkdir dist_win
-          copy-item rust/target/release/transparente_rust.exe dist_win/
-          # El flag -recurse asegura encontrar las librerías de IA descargadas
-          get-childitem -path rust/target -filter *.dll -recurse | copy-item -destination dist_win/ -force
+          source $HOME/.cargo/env
+          cargo build --release
 
-      # --- LINUX: Generación de RPM con inyección de .so ---
-      - name: Prepare Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Inject ONNX Runtime and build RPM
+        working-directory: rust
         run: |
-          mkdir dist_linux
-          
-          # 1. Localizar la librería dinámica (ahora debería estar en target/release)
-          SO_PATH=$(find rust/target -name "libonnxruntime.so*" -type f -print -quit)
-          
+          source $HOME/.cargo/env
+
+          SO_PATH=$(find target -name "libonnxruntime.so*" -type f | head -n1)
           if [ -z "$SO_PATH" ]; then
-            echo "ERROR: No se encontró libonnxruntime.so"
+            echo "libonnxruntime no encontrada"
             exit 1
           fi
-          
-          SO_NAME=$(basename "$SO_PATH")
-          cp "$SO_PATH" rust/target/release/
-          echo "Librería motor de IA detectada: $SO_NAME"
 
-          # 2. Instalar herramienta de empaquetado
+          SO_NAME=$(basename "$SO_PATH")
+          cp "$SO_PATH" target/release/
+
           cargo install cargo-generate-rpm
 
-          # 3. Generar el RPM inyectando el archivo dinámico
-          cd rust
-          cargo generate-rpm --payload-file "target/release/$SO_NAME=/usr/lib64/$SO_NAME"
+          cargo generate-rpm \
+            --payload-file "target/release/$SO_NAME=/usr/lib64/$SO_NAME"
 
-          # 4. Verificación visual en los logs de GitHub
-          echo "Contenido del paquete RPM:"
-          rpm -qpl target/generate-rpm/*.rpm
-
-          # 5. Mover a carpeta de salida
-          cp target/generate-rpm/*.rpm ../dist_linux/
-          cp target/release/transparente_rust ../dist_linux/
-          cp target/release/$SO_NAME ../dist_linux/
-
-      # --- MACOS: DMG con create-dmg ---
-      - name: Prepare Mac
-        if: matrix.os == 'macos-latest'
+      - name: Collect RPM
         run: |
-          mkdir -p dist_mac/AppContent
-          cp rust/target/release/transparente_rust dist_mac/AppContent/
-          # Capturamos las librerías de Mac descargadas por 'ort'
-          find rust/target -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \; 2>/dev/null || true
-          chmod +x dist_mac/AppContent/transparente_rust
+          mkdir -p dist_fedora
+          cp rust/target/generate-rpm/*.rpm dist_fedora/
 
-          brew install create-dmg
-
-          create-dmg \
-            --volname "Instalador Transparente" \
-            --window-pos 200 120 \
-            --window-size 500 300 \
-            --icon-size 100 \
-            --app-drop-link 380 120 \
-            "dist_mac/transparente_rust.dmg" \
-            "dist_mac/AppContent/"
-
-      # --- SUBIDA DE ARTEFACTOS ---
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            dist_win/
-            dist_linux/
-            dist_mac/*.dmg
+          name: transparente_rust-fedora
+          path: dist_fedora/

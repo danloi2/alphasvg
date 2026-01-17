@@ -39,3 +39,5 @@ assets = [
 "libxkbcommon" = ">= 1.0"
 "openssl-libs" = "*"
 "mesa-libEGL" = "*"
+"glibc" = "*"
+"libstdc++" = "*"
