@@ -6,17 +6,24 @@ jobs:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # Permite que si uno falla, los otros sigan compilando
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             artifact_name: transparente_rust-linux
+            # En Linux solo necesitamos el binario
             binary_path: rust/target/release/transparente_rust
+          
           - os: windows-latest
             artifact_name: transparente_rust-windows
-            binary_path: rust/target/release/*.exe
+            # En Windows incluimos el .exe y las .dll (vital para ONNX)
+            binary_path: |
+              rust/target/release/*.exe
+              rust/target/release/*.dll
+          
           - os: macos-latest
             artifact_name: transparente_rust-macos
+            # En Mac solo necesitamos el binario
             binary_path: rust/target/release/transparente_rust
 
     steps:
@@ -31,6 +38,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
       - name: Build Release
         working-directory: ./rust
@@ -41,3 +50,4 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: ${{ matrix.binary_path }}
+          if-no-files-found: error
