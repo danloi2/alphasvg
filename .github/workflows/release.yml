@@ -103,9 +103,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Release
+        shell: pwsh
         run: |
           cd rust
-          ORT_STRATEGY=download cargo build --release
+          $env:ORT_STRATEGY="download"
+          cargo build --release
 
       - name: Prepare Windows artifact
         shell: pwsh
