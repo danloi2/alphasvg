@@ -6,120 +6,56 @@ on:
 
 jobs:
   # ------------------------------
-  # Job multiplataforma Linux/Windows/macOS
+  # Job Linux multiplataforma (Ubuntu + Fedora)
   # ------------------------------
-  build:
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             artifact_name: transparente_rust-linux
-          - os: windows-latest
-            artifact_name: transparente_rust-windows
-          - os: macos-latest
-            artifact_name: transparente_rust-macos
+            container_image: ""          # No container para Ubuntu
+          - os: fedora-latest
+            artifact_name: transparente_rust-fedora
+            container_image: fedora:latest
+
+    container: ${{ matrix.container_image != "" && matrix.container_image || '' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- LINUX UBUNTU ---
-      - name: Install Linux Dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libegl1-mesa-dev libdbus-1-dev libssl-dev rpm pkg-config zlib1g-dev curl
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y libwayland-dev libx11-dev libxkbcommon-dev libegl1-mesa-dev libdbus-1-dev libssl-dev rpm pkg-config zlib1g-dev curl
+          else
+            dnf update -y
+            dnf install -y gcc gcc-c++ make openssl-devel libX11-devel libxkbcommon-devel wayland-devel mesa-libEGL-devel dbus-devel rpm-build rpmdevtools curl git pkgconfig zlib-devel rust cargo
+          fi
 
-      - name: Install Rust
+      - name: Install Rust (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build Release
-        working-directory: ./rust
-        env:
-          ORT_STRATEGY: download
-        run: cargo build --release
-
-      # --- WINDOWS ---
-      - name: Prepare Windows
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
-          mkdir dist_win
-
-          copy-item rust/target/release/transparente_rust.exe dist_win/
-          Get-ChildItem -Path rust/target/release -Filter *.dll | Copy-Item -Destination dist_win/ -Force
-
-          Write-Host "Archivos copiados en dist_win:"
-          Get-ChildItem dist_win | ForEach-Object { Write-Host $_.FullName }
-
-      # --- MACOS ---
-      - name: Prepare Mac
-        if: matrix.os == 'macos-latest'
-        run: |
-          rm -rf dist_mac
-          mkdir -p dist_mac/AppContent
-
-          cp rust/target/release/transparente_rust dist_mac/AppContent/
-          find rust/target/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
-
-          chmod +x dist_mac/AppContent/transparente_rust
-
-          echo "Archivos copiados a AppContent:"
-          ls -l dist_mac/AppContent/
-
-          brew install --quiet create-dmg
-          create-dmg \
-            --volname "Instalador Transparente" \
-            --window-pos 200 120 \
-            --window-size 500 300 \
-            --icon-size 100 \
-            --app-drop-link 380 120 \
-            "dist_mac/transparente_rust.dmg" \
-            "dist_mac/AppContent/"
-
-      # --- SUBIDA DE ARTEFACTOS MULTIPLATAFORMA ---
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: |
-            dist_win/
-            dist_mac/*.dmg
-            dist_linux/
-
-  # ------------------------------
-  # Job Fedora con contenedor moderno
-  # ------------------------------
-  build-fedora:
-    name: Build Fedora RPM
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          dnf update -y
-          dnf install -y gcc gcc-c++ make openssl-devel libX11-devel libxkbcommon-devel wayland-devel mesa-libEGL-devel dbus-devel rpm-build rpmdevtools curl git pkgconfig zlib-devel
-
-      - name: Install Rust
-        run: |
-          dnf install -y rust cargo
-          rustc --version
-          cargo --version
-
-      - name: Build Release and inject ONNX Runtime
         run: |
           cd rust
           ORT_STRATEGY=download cargo build --release
 
+      - name: Prepare Linux artifact
+        run: |
+          mkdir -p dist_linux
+          cp rust/target/release/transparente_rust dist_linux/
+
+      - name: Generate Fedora RPM
+        if: matrix.os == 'fedora-latest'
+        run: |
+          cd rust
           echo "Buscando libonnxruntime..."
           SO_PATH=$(find target -type f -name "libonnxruntime.so*" | head -n1)
           if [ -z "$SO_PATH" ]; then
@@ -131,16 +67,90 @@ jobs:
           cp "$SO_PATH" target/release/
 
           cargo install cargo-generate-rpm
-
           cargo generate-rpm --payload-file "target/release/$SO_NAME=/usr/lib64/$SO_NAME"
 
           mkdir -p ../dist_fedora
-          cp target/generate-rpm/*.rpm ../dist_fedora/
           cp target/release/transparente_rust ../dist_fedora/
           cp target/release/$SO_NAME ../dist_fedora/
+          cp target/generate-rpm/*.rpm ../dist_fedora/
 
-      - name: Upload Fedora Artifact
+      - name: Upload Linux Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: transparente_rust-fedora
-          path: dist_fedora/
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && 'dist_linux/' || 'dist_fedora/' }}
+
+  # ------------------------------
+  # Job Windows
+  # ------------------------------
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Release
+        run: |
+          cd rust
+          ORT_STRATEGY=download cargo build --release
+
+      - name: Prepare Windows artifact
+        shell: pwsh
+        run: |
+          if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
+          mkdir dist_win
+          copy-item rust/target/release/transparente_rust.exe dist_win/
+          Get-ChildItem -Path rust/target/release -Filter *.dll | Copy-Item -Destination dist_win/ -Force
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transparente_rust-windows
+          path: dist_win/
+
+  # ------------------------------
+  # Job macOS
+  # ------------------------------
+  build-macos:
+    name: Build Mac
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Release
+        run: |
+          cd rust
+          ORT_STRATEGY=download cargo build --release
+
+      - name: Prepare Mac artifact
+        run: |
+          rm -rf dist_mac
+          mkdir -p dist_mac/AppContent
+          cp rust/target/release/transparente_rust dist_mac/AppContent/
+          find rust/target/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
+          chmod +x dist_mac/AppContent/transparente_rust
+
+          brew install --quiet create-dmg
+          create-dmg \
+            --volname "Instalador Transparente" \
+            --window-pos 200 120 \
+            --window-size 500 300 \
+            --icon-size 100 \
+            --app-drop-link 380 120 \
+            "dist_mac/transparente_rust.dmg" \
+            "dist_mac/AppContent/"
+
+      - name: Upload Mac Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transparente_rust-macos
+          path: dist_mac/*.dmg
