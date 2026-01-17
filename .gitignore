@@ -37,3 +37,6 @@ Icon
 # --- Otros ---
 *.log
 logo.iconset/
+
+# --- Rust ---
+rust/target/
