@@ -54,7 +54,7 @@ jobs:
           name: transparente_rust-fedora-rpm
           path: dist_fedora/
 
-  # WINDOWS: Captura el EXE y la DirectML.dll (Vital para GPU)
+  # WINDOWS: Captura el EXE y la DirectML.dll (Filtrando la basura)
   build-windows:
     name: Build Windows
     runs-on: windows-latest
@@ -70,10 +70,18 @@ jobs:
       - name: Prepare Artifact
         shell: pwsh
         run: |
+          if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
           mkdir dist_win
           copy-item rust/target/release/transparente_rust.exe dist_win/
-          # Buscamos cualquier DLL generada (DirectML.dll) para que funcione la GPU
-          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Copy-Item -Destination dist_win/ -Force
+          
+          # FILTRO INTELIGENTE: 
+          # Capturamos solo DirectML.dll y evitamos serde_derive, zerocopy, etc.
+          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object { 
+              $_.Name -like "*DirectML*" 
+          } | Copy-Item -Destination dist_win/ -Force
+          
+          # Listado para que veas en el log que está limpio
+          ls dist_win/
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
