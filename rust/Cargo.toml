@@ -1,6 +1,6 @@
 [package]
 name = "transparente_rust"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 authors = ["Daniel Losada <daniel.losada@ehu.eus>"]
 description = "Aplicacion de IA de conversión de texto a imágenes con fondo transparente"

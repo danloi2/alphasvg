@@ -1,6 +1,7 @@
 mod config;
 mod generators;
 mod gui;
+mod lang;
 
 use clap::Parser;
 use std::path::Path;
@@ -19,16 +20,22 @@ struct Args {
     output: Option<String>,
 }
 
+use crate::lang::LanguageManager;
+use crate::generators::LogOutput;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    // Default language manager for CLI logs
+    let lang = LanguageManager::default();
+    let logger = LogOutput::StdOut;
 
     match (args.input, args.output) {
         (Some(input), Some(output)) => {
-            process_batch(&input, &output)?;
+            process_batch(&input, &output, &lang, &logger)?;
         }
         _ => {
-            println!("🚀 Starting GUI...");
+            println!("{}", lang.t("log_gui_starting"));
             gui::run_gui()?;
         }
     }
@@ -36,7 +43,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn process_batch(input_dir: &str, output_dir: &str) -> Result<()> {
+fn process_batch(input_dir: &str, output_dir: &str, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     let input_path = Path::new(input_dir);
     let output_path = Path::new(output_dir);
 
@@ -73,14 +80,14 @@ fn process_batch(input_dir: &str, output_dir: &str) -> Result<()> {
     println!("🚀 Processing {} images modularly...", files.len());
 
     for file_path in files {
-        process_single_image(&file_path, output_path)?;
+        process_single_image(&file_path, output_path, lang, logger)?;
     }
 
     println!("\n✅ All image processing complete.");
     Ok(())
 }
 
-fn process_single_image(input_path: &Path, output_dir: &Path) -> Result<()> {
+fn process_single_image(input_path: &Path, output_dir: &Path, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     let file_name = input_path.file_stem().unwrap().to_str().unwrap();
     let base_name = format!("{}_alpha", file_name);
 
@@ -95,15 +102,16 @@ fn process_single_image(input_path: &Path, output_dir: &Path) -> Result<()> {
     println!("\n📦 Processing: {:?}...", input_path.file_name().unwrap());
 
     // 1. Generate the AI-processed Alpha PNG first
-    let img = generators::generate_alpha_png(input_path, &alpha_path)?;
+    let dummy_status = std::sync::Arc::new(std::sync::Mutex::new(crate::generators::ModelState::Unloaded));
+    let img = generators::generate_alpha_png(input_path, Some(&alpha_path), lang, logger, &dummy_status, generators::ModelType::default())?;
 
     // 2. Use the processed Alpha PNG as source for everything else
-    generators::generate_grayscale_svg(&img, &gray_path, 8)?;
-    generators::generate_halftone_svg(&img, &halftone_path)?;
-    generators::generate_lineart_svg(&img, &lineart_path)?;
-    generators::generate_color_svg(&img, &color_logo_path, 16)?;
-    generators::generate_color_svg(&img, &color_illus_path, 48)?;
-    generators::generate_thumbnail(&img, &thumb_path)?;
+    generators::generate_grayscale_svg(&img, &gray_path, 8, lang, logger)?;
+    generators::generate_halftone_svg(&img, &halftone_path, lang, logger)?;
+    generators::generate_lineart_svg(&img, &lineart_path, lang, logger)?;
+    generators::generate_logo(&img, &color_logo_path, lang, logger)?;
+    generators::generate_illustration(&img, &color_illus_path, lang, logger)?;
+    generators::generate_thumbnail(&img, &thumb_path, lang, logger)?;
 
     Ok(())
 }

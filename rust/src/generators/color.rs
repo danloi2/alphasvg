@@ -7,7 +7,18 @@ use tempfile::NamedTempFile;
 use kmeans_colors::get_kmeans;
 use palette::{Srgb, Lab, FromColor, IntoColor};
 
-pub fn generate_color_svg(img: &DynamicImage, output_path: &Path, num_colors: u32) -> Result<()> {
+use crate::lang::LanguageManager;
+use crate::generators::LogOutput;
+
+pub fn generate_logo(img: &DynamicImage, output_path: &Path, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
+    generate_color_svg(img, output_path, 16, lang, logger)
+}
+
+pub fn generate_illustration(img: &DynamicImage, output_path: &Path, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
+    generate_color_svg(img, output_path, 48, lang, logger)
+}
+
+fn generate_color_svg(img: &DynamicImage, output_path: &Path, num_colors: u32, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     if output_path.exists() {
         return Ok(());
     }
@@ -140,6 +151,6 @@ pub fn generate_color_svg(img: &DynamicImage, output_path: &Path, num_colors: u3
     final_svg.push_str("</svg>");
 
     fs::write(output_path, final_svg)?;
-    println!("🎨 SVG Color OK: {:?}", output_path.file_name().unwrap());
+    logger.send(format!("{}{:?}", lang.t("log_svg_color_ok"), output_path.file_name().unwrap()));
     Ok(())
 }

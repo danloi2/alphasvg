@@ -3,9 +3,11 @@ use std::path::Path;
 use std::process::Command;
 use std::fs;
 use anyhow::{Result, anyhow};
+use crate::lang::LanguageManager;
+use crate::generators::LogOutput;
 use tempfile::NamedTempFile;
 
-pub fn generate_grayscale_svg(img: &DynamicImage, output_path: &Path, num_tones: u32) -> Result<()> {
+pub fn generate_grayscale_svg(img: &DynamicImage, output_path: &Path, num_tones: u32, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     if output_path.exists() {
         return Ok(());
     }
@@ -95,11 +97,11 @@ pub fn generate_grayscale_svg(img: &DynamicImage, output_path: &Path, num_tones:
     final_svg.push_str("</svg>");
 
     fs::write(output_path, final_svg)?;
-    println!("🎨 SVG Grayscale OK: {:?}", output_path.file_name().unwrap());
+    logger.send(format!("{}{:?}", lang.t("log_svg_mono_ok"), output_path.file_name().unwrap()));
     Ok(())
 }
 
-pub fn generate_halftone_svg(img: &DynamicImage, output_path: &Path) -> Result<()> {
+pub fn generate_halftone_svg(img: &DynamicImage, output_path: &Path, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     if output_path.exists() {
         return Ok(());
     }
@@ -151,11 +153,11 @@ pub fn generate_halftone_svg(img: &DynamicImage, output_path: &Path) -> Result<(
     svg.push_str("</svg>");
 
     fs::write(output_path, svg)?;
-    println!("🎨 SVG Halftone OK: {:?}", output_path.file_name().unwrap());
+    logger.send(format!("{}{:?}", lang.t("log_svg_mono_ok"), output_path.file_name().unwrap()));
     Ok(())
 }
 
-pub fn generate_lineart_svg(img: &DynamicImage, output_path: &Path) -> Result<()> {
+pub fn generate_lineart_svg(img: &DynamicImage, output_path: &Path, lang: &LanguageManager, logger: &LogOutput) -> Result<()> {
     if output_path.exists() {
         return Ok(());
     }
@@ -213,6 +215,6 @@ pub fn generate_lineart_svg(img: &DynamicImage, output_path: &Path) -> Result<()
         return Err(anyhow!("Potrace failed for lineart"));
     }
 
-    println!("✏️ SVG Lineart OK: {:?}", output_path.file_name().unwrap());
+    logger.send(format!("{}{:?}", lang.t("log_svg_mono_ok"), output_path.file_name().unwrap()));
     Ok(())
 }
