@@ -4,6 +4,7 @@ pub mod alpha;
 pub mod mono;
 pub mod color;
 pub mod thumbnail;
+pub mod models;
 pub mod ai;
 
 pub use alpha::generate_alpha_png;
