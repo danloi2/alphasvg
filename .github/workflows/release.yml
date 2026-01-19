@@ -111,9 +111,12 @@ jobs:
       - name: Build Intel (x86_64)
         run: |
           cd rust
-          ORT_STRATEGY=system \
-          ORT_LIB_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib \
-          ORT_INCLUDE_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/include \
+
+          export ORT_STRATEGY=system
+          export ORT_LIB_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib/libonnxruntime.dylib
+          export ORT_DYLIB_PATH=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib/libonnxruntime.dylib
+          export ORT_INCLUDE_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/include
+
           cargo build --release --target x86_64-apple-darwin
 
       # ---------- UNIVERSAL ----------
