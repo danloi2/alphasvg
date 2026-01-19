@@ -100,9 +100,14 @@ jobs:
         run: |
           cd rust
           # 1. Compilar para Apple Silicon (arm64)
+          # Los runners de GitHub son arm64 por defecto, así que suele funcionar directo
           ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
+          
           # 2. Compilar para Intel (x86_64)
-          ORT_STRATEGY=download cargo build --release --target x86_64-apple-darwin
+          # Forzamos la descarga del binario de ONNX para Intel
+          ORT_STRATEGY=download \
+          ORT_OVERRIDE_TARGET=x86_64-apple-darwin \
+          cargo build --release --target x86_64-apple-darwin
           
           # 3. Crear el directorio de salida y unir los binarios con 'lipo'
           mkdir -p ../dist_mac/AppContent
@@ -113,9 +118,21 @@ jobs:
 
       - name: Copy Libraries
         run: |
-          # Copiamos las dylib necesarias. Nota: ORT download suele bajar la adecuada al target.
-          # Usamos las de arm64 como base, macOS suele gestionar la compatibilidad si son dinámicas.
-          find rust/target/aarch64-apple-darwin/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
+          # Copiamos las dylib de ambas arquitecturas para asegurar que el DMG sea completo
+          # Creamos versiones universales de las librerías dinámicas también
+          mkdir -p dist_mac/AppContent/libs
+          
+          # Unir la dylib de ONNX si existe (es lo que suele dar problemas)
+          # Nota: Ajusta el nombre si la librería se llama diferente (ej. libonnxruntime.dylib)
+          if [ -f rust/target/aarch64-apple-darwin/release/libonnxruntime.dylib ]; then
+            lipo -create \
+              rust/target/aarch64-apple-darwin/release/libonnxruntime.dylib \
+              rust/target/x86_64-apple-darwin/release/libonnxruntime.dylib \
+              -output dist_mac/AppContent/libonnxruntime.dylib
+          else
+            # Si no las encuentras en release, búscalas donde las haya descargado ORT
+            find rust/target -name "*.dylib" -exec cp {} dist_mac/AppContent/ \;
+          fi
 
       - name: Create DMG
         run: |
