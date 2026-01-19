@@ -73,8 +73,8 @@ jobs:
           if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
           mkdir dist_win
           copy-item rust/target/release/transparente_rust.exe dist_win/
-          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object { 
-              $_.Name -like "*DirectML*" 
+          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object {
+              $_.Name -like "*DirectML*"
           } | Copy-Item -Destination dist_win/ -Force
       - name: Upload
         uses: actions/upload-artifact@v4
@@ -88,7 +88,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust Toolchains
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -101,16 +101,19 @@ jobs:
           ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
 
       # ---------- INTEL ----------
-      - name: Install ONNX Runtime (Intel)
+      - name: Download ONNX Runtime Intel
         run: |
-          arch -x86_64 brew install onnxruntime
+          mkdir -p rust/onnx_x86
+          cd rust/onnx_x86
+          curl -L -o onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.3/onnxruntime-osx-x86_64-1.17.3.tgz
+          tar -xzf onnxruntime.tgz
 
       - name: Build Intel (x86_64)
         run: |
           cd rust
           ORT_STRATEGY=system \
-          ORT_LIB_LOCATION=/usr/local/lib \
-          ORT_INCLUDE_LOCATION=/usr/local/include \
+          ORT_LIB_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib \
+          ORT_INCLUDE_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/include \
           cargo build --release --target x86_64-apple-darwin
 
       # ---------- UNIVERSAL ----------
@@ -124,7 +127,7 @@ jobs:
             -output dist_mac/AppContent/transparente_rust
 
           ARM_DYLIB=$(find rust/target/aarch64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
-          X86_DYLIB=$(find /usr/local/lib -name "libonnxruntime.dylib" | head -n 1)
+          X86_DYLIB=$(find rust/onnx_x86 -name "libonnxruntime.dylib" | head -n 1)
 
           if [ -f "$ARM_DYLIB" ] && [ -f "$X86_DYLIB" ]; then
             lipo -create "$ARM_DYLIB" "$X86_DYLIB" -output dist_mac/AppContent/libonnxruntime.dylib
