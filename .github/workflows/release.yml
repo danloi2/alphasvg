@@ -88,48 +88,48 @@ jobs:
           name: transparente_rust-windows
           path: dist_win/
 
-  # macOS: Binario + dylibs
- build-macos:
-    name: Build Mac Universal
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust Toolchains
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-
-      - name: Build Universal Binary
-        run: |
-          cd rust
-          # 1. Compilar para Apple Silicon
-          ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
-          # 2. Compilar para Intel
-          ORT_STRATEGY=download cargo build --release --target x86_64-apple-darwin
-          
-          # 3. Crear el directorio de salida y unir los binarios con 'lipo'
-          mkdir -p ../dist_mac/AppContent
-          lipo -create \
-            target/aarch64-apple-darwin/release/transparente_rust \
-            target/x86_64-apple-darwin/release/transparente_rust \
-            -output ../dist_mac/AppContent/transparente_rust
-
-      - name: Copy Libraries
-        run: |
-          # Copiamos las dylib (asegúrate de que las librerías también sean universales o compatibles)
-          find rust/target/aarch64-apple-darwin/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
-
-      - name: Create DMG
-        run: |
-          brew install --quiet create-dmg
-          create-dmg \
-            --volname "Transparente IA" \
-            "dist_mac/transparente_rust_macos.dmg" \
-            "dist_mac/AppContent/"
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: transparente_rust-macos-universal
-          path: dist_mac/*.dmg
+    # macOS: Binario + dylibs
+   build-macos:
+      name: Build Mac Universal
+      runs-on: macos-latest
+      steps:
+        - uses: actions/checkout@v4
+        
+        - name: Install Rust Toolchains
+          uses: dtolnay/rust-toolchain@stable
+          with:
+            targets: aarch64-apple-darwin, x86_64-apple-darwin
+  
+        - name: Build Universal Binary
+          run: |
+            cd rust
+            # 1. Compilar para Apple Silicon
+            ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
+            # 2. Compilar para Intel
+            ORT_STRATEGY=download cargo build --release --target x86_64-apple-darwin
+            
+            # 3. Crear el directorio de salida y unir los binarios con 'lipo'
+            mkdir -p ../dist_mac/AppContent
+            lipo -create \
+              target/aarch64-apple-darwin/release/transparente_rust \
+              target/x86_64-apple-darwin/release/transparente_rust \
+              -output ../dist_mac/AppContent/transparente_rust
+  
+        - name: Copy Libraries
+          run: |
+            # Copiamos las dylib (asegúrate de que las librerías también sean universales o compatibles)
+            find rust/target/aarch64-apple-darwin/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
+  
+        - name: Create DMG
+          run: |
+            brew install --quiet create-dmg
+            create-dmg \
+              --volname "Transparente IA" \
+              "dist_mac/transparente_rust_macos.dmg" \
+              "dist_mac/AppContent/"
+  
+        - name: Upload
+          uses: actions/upload-artifact@v4
+          with:
+            name: transparente_rust-macos-universal
+            path: dist_mac/*.dmg
