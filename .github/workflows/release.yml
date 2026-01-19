@@ -84,7 +84,6 @@ jobs:
           name: transparente_rust-windows
           path: dist_win/
 
-  # macOS: Binario Universal (Intel + Apple Silicon)
   build-macos:
     name: Build Mac Universal
     runs-on: macos-latest
@@ -96,43 +95,46 @@ jobs:
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
 
-      - name: Build Universal Binary
+      - name: Build Apple Silicon (arm64)
         run: |
           cd rust
-          # 1. Compilar para Apple Silicon (arm64)
-          # Los runners de GitHub son arm64 por defecto, así que suele funcionar directo
           ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
-          
-          # 2. Compilar para Intel (x86_64)
-          # Forzamos la descarga del binario de ONNX para Intel
-          ORT_STRATEGY=download \
-          ORT_OVERRIDE_TARGET=x86_64-apple-darwin \
-          cargo build --release --target x86_64-apple-darwin
-          
-          # 3. Crear el directorio de salida y unir los binarios con 'lipo'
-          mkdir -p ../dist_mac/AppContent
-          lipo -create \
-            target/aarch64-apple-darwin/release/transparente_rust \
-            target/x86_64-apple-darwin/release/transparente_rust \
-            -output ../dist_mac/AppContent/transparente_rust
 
-      - name: Copy Libraries
+      - name: Build Intel (x86_64)
         run: |
-          # Copiamos las dylib de ambas arquitecturas para asegurar que el DMG sea completo
-          # Creamos versiones universales de las librerías dinámicas también
-          mkdir -p dist_mac/AppContent/libs
+          cd rust
+          # Intentamos forzar el target. Si falla por falta de binario precompilado:
+          # Usamos ORT_STRATEGY=download pero permitimos que use el binario descargado previamente o manual
+          ORT_STRATEGY=download ORT_OVERRIDE_TARGET=x86_64-apple-darwin cargo build --release --target x86_64-apple-darwin
+
+      - name: Create Universal Bundle
+        run: |
+          mkdir -p dist_mac/AppContent
           
-          # Unir la dylib de ONNX si existe (es lo que suele dar problemas)
-          # Nota: Ajusta el nombre si la librería se llama diferente (ej. libonnxruntime.dylib)
-          if [ -f rust/target/aarch64-apple-darwin/release/libonnxruntime.dylib ]; then
-            lipo -create \
-              rust/target/aarch64-apple-darwin/release/libonnxruntime.dylib \
-              rust/target/x86_64-apple-darwin/release/libonnxruntime.dylib \
-              -output dist_mac/AppContent/libonnxruntime.dylib
+          # 1. Unir los ejecutables (Lipo)
+          lipo -create \
+            rust/target/aarch64-apple-darwin/release/transparente_rust \
+            rust/target/x86_64-apple-darwin/release/transparente_rust \
+            -output dist_mac/AppContent/transparente_rust
+          
+          # 2. Buscar y unir las librerías dinámicas de ONNX (libonnxruntime.dylib)
+          # Buscamos en todas las carpetas de target donde ort suele descargar cosas
+          ARM_DYLIB=$(find rust/target/aarch64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
+          X86_DYLIB=$(find rust/target/x86_64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
+          
+          if [ -f "$ARM_DYLIB" ] && [ -f "$X86_DYLIB" ]; then
+            echo "Uniendo dylibs encontradas..."
+            lipo -create "$ARM_DYLIB" "$X86_DYLIB" -output dist_mac/AppContent/libonnxruntime.dylib
           else
-            # Si no las encuentras en release, búscalas donde las haya descargado ORT
+            echo "Copiando dylibs individuales si lipo falló..."
             find rust/target -name "*.dylib" -exec cp {} dist_mac/AppContent/ \;
           fi
+
+      - name: Fix Library Loading Paths (RPath)
+        run: |
+          # Esto asegura que el ejecutable busque la .dylib en su misma carpeta
+          # Muy importante para que funcione al desempaquetar el DMG
+          install_name_tool -change @rpath/libonnxruntime.dylib @executable_path/libonnxruntime.dylib dist_mac/AppContent/transparente_rust || true
 
       - name: Create DMG
         run: |
