@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  # UBUNTU: Enlace estático
+
+  # ===================== UBUNTU =====================
   build-ubuntu:
     name: Build Ubuntu
     runs-on: ubuntu-latest
@@ -28,7 +29,7 @@ jobs:
           name: transparente_rust-linux
           path: rust/target/release/transparente_rust
 
-  # FEDORA: Empaquetado RPM
+  # ===================== FEDORA =====================
   build-fedora:
     name: Build Fedora RPM
     runs-on: ubuntu-latest
@@ -53,7 +54,7 @@ jobs:
           name: transparente_rust-fedora-rpm
           path: dist_fedora/
 
-  # WINDOWS: EXE + DirectML.dll
+  # ===================== WINDOWS =====================
   build-windows:
     name: Build Windows
     runs-on: windows-latest
@@ -72,18 +73,16 @@ jobs:
           if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
           mkdir dist_win
           copy-item rust/target/release/transparente_rust.exe dist_win/
-          
-          # Capturamos solo DirectML.dll de las dependencias de ONNX
           Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object { 
               $_.Name -like "*DirectML*" 
           } | Copy-Item -Destination dist_win/ -Force
-          ls dist_win/
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: transparente_rust-windows
           path: dist_win/
 
+  # ===================== MACOS UNIVERSAL =====================
   build-macos:
     name: Build Mac Universal
     runs-on: macos-latest
@@ -95,45 +94,46 @@ jobs:
         with:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
 
+      # ---------- ARM64 ----------
       - name: Build Apple Silicon (arm64)
         run: |
           cd rust
           ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
 
+      # ---------- INTEL ----------
+      - name: Install ONNX Runtime (Intel)
+        run: |
+          arch -x86_64 brew install onnxruntime
+
       - name: Build Intel (x86_64)
         run: |
           cd rust
-          # Intentamos forzar el target. Si falla por falta de binario precompilado:
-          # Usamos ORT_STRATEGY=download pero permitimos que use el binario descargado previamente o manual
-          ORT_STRATEGY=download ORT_OVERRIDE_TARGET=x86_64-apple-darwin cargo build --release --target x86_64-apple-darwin
+          ORT_STRATEGY=system \
+          ORT_LIB_LOCATION=/usr/local/lib \
+          ORT_INCLUDE_LOCATION=/usr/local/include \
+          cargo build --release --target x86_64-apple-darwin
 
+      # ---------- UNIVERSAL ----------
       - name: Create Universal Bundle
         run: |
           mkdir -p dist_mac/AppContent
-          
-          # 1. Unir los ejecutables (Lipo)
+
           lipo -create \
             rust/target/aarch64-apple-darwin/release/transparente_rust \
             rust/target/x86_64-apple-darwin/release/transparente_rust \
             -output dist_mac/AppContent/transparente_rust
-          
-          # 2. Buscar y unir las librerías dinámicas de ONNX (libonnxruntime.dylib)
-          # Buscamos en todas las carpetas de target donde ort suele descargar cosas
+
           ARM_DYLIB=$(find rust/target/aarch64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
-          X86_DYLIB=$(find rust/target/x86_64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
-          
+          X86_DYLIB=$(find /usr/local/lib -name "libonnxruntime.dylib" | head -n 1)
+
           if [ -f "$ARM_DYLIB" ] && [ -f "$X86_DYLIB" ]; then
-            echo "Uniendo dylibs encontradas..."
             lipo -create "$ARM_DYLIB" "$X86_DYLIB" -output dist_mac/AppContent/libonnxruntime.dylib
           else
-            echo "Copiando dylibs individuales si lipo falló..."
-            find rust/target -name "*.dylib" -exec cp {} dist_mac/AppContent/ \;
+            cp "$ARM_DYLIB" dist_mac/AppContent/
           fi
 
-      - name: Fix Library Loading Paths (RPath)
+      - name: Fix RPath
         run: |
-          # Esto asegura que el ejecutable busque la .dylib en su misma carpeta
-          # Muy importante para que funcione al desempaquetar el DMG
           install_name_tool -change @rpath/libonnxruntime.dylib @executable_path/libonnxruntime.dylib dist_mac/AppContent/transparente_rust || true
 
       - name: Create DMG
