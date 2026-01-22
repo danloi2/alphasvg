@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  # ===================== UBUNTU =====================
+  # UBUNTU: Ya no busca .so porque el enlace es estático
   build-ubuntu:
     name: Build Ubuntu
     runs-on: ubuntu-latest
@@ -29,7 +28,7 @@ jobs:
           name: transparente_rust-linux
           path: rust/target/release/transparente_rust
 
-  # ===================== FEDORA =====================
+  # FEDORA: Solo empaqueta el ejecutable (ONNX va dentro)
   build-fedora:
     name: Build Fedora RPM
     runs-on: ubuntu-latest
@@ -45,6 +44,7 @@ jobs:
           export ORT_STRATEGY=download
           cargo build --release
           cargo install cargo-generate-rpm
+          # Generamos el RPM (Asegúrate de haber borrado el .so de tu Cargo.toml)
           cargo generate-rpm
           mkdir -p ../dist_fedora
           cp target/generate-rpm/*.rpm ../dist_fedora/
@@ -54,7 +54,7 @@ jobs:
           name: transparente_rust-fedora-rpm
           path: dist_fedora/
 
-  # ===================== WINDOWS =====================
+  # WINDOWS: Captura el EXE y la DirectML.dll (Filtrando la basura)
   build-windows:
     name: Build Windows
     runs-on: windows-latest
@@ -73,85 +73,41 @@ jobs:
           if (Test-Path dist_win) { Remove-Item -Recurse -Force dist_win }
           mkdir dist_win
           copy-item rust/target/release/transparente_rust.exe dist_win/
-          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object {
-              $_.Name -like "*DirectML*"
+          
+          # FILTRO INTELIGENTE: 
+          # Capturamos solo DirectML.dll y evitamos serde_derive, zerocopy, etc.
+          Get-ChildItem -Path rust/target/release -Filter *.dll -Recurse | Where-Object { 
+              $_.Name -like "*DirectML*" 
           } | Copy-Item -Destination dist_win/ -Force
+          
+          # Listado para que veas en el log que está limpio
+          ls dist_win/
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: transparente_rust-windows
           path: dist_win/
 
-  # ===================== MACOS UNIVERSAL =====================
+  # macOS: Binario + dylibs
   build-macos:
-    name: Build Mac Universal
+    name: Build Mac
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust Toolchains
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-
-      # ---------- ARM64 ----------
-      - name: Build Apple Silicon (arm64)
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
         run: |
           cd rust
-          ORT_STRATEGY=download cargo build --release --target aarch64-apple-darwin
-
-      # ---------- INTEL ----------
-      - name: Download ONNX Runtime Intel
-        run: |
-          mkdir -p rust/onnx_x86
-          cd rust/onnx_x86
-          curl -L -o onnxruntime.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.3/onnxruntime-osx-x86_64-1.17.3.tgz
-          tar -xzf onnxruntime.tgz
-
-      - name: Build Intel (x86_64)
-        run: |
-          cd rust
-
-          export ORT_STRATEGY=system
-          export ORT_LIB_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib/libonnxruntime.dylib
-          export ORT_DYLIB_PATH=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/lib/libonnxruntime.dylib
-          export ORT_INCLUDE_LOCATION=$PWD/onnx_x86/onnxruntime-osx-x86_64-1.17.3/include
-
-          cargo build --release --target x86_64-apple-darwin
-
-      # ---------- UNIVERSAL ----------
-      - name: Create Universal Bundle
-        run: |
-          mkdir -p dist_mac/AppContent
-
-          lipo -create \
-            rust/target/aarch64-apple-darwin/release/transparente_rust \
-            rust/target/x86_64-apple-darwin/release/transparente_rust \
-            -output dist_mac/AppContent/transparente_rust
-
-          ARM_DYLIB=$(find rust/target/aarch64-apple-darwin -name "libonnxruntime.dylib" | head -n 1)
-          X86_DYLIB=$(find rust/onnx_x86 -name "libonnxruntime.dylib" | head -n 1)
-
-          if [ -f "$ARM_DYLIB" ] && [ -f "$X86_DYLIB" ]; then
-            lipo -create "$ARM_DYLIB" "$X86_DYLIB" -output dist_mac/AppContent/libonnxruntime.dylib
-          else
-            cp "$ARM_DYLIB" dist_mac/AppContent/
-          fi
-
-      - name: Fix RPath
-        run: |
-          install_name_tool -change @rpath/libonnxruntime.dylib @executable_path/libonnxruntime.dylib dist_mac/AppContent/transparente_rust || true
-
+          ORT_STRATEGY=download cargo build --release
       - name: Create DMG
         run: |
+          mkdir -p dist_mac/AppContent
+          cp rust/target/release/transparente_rust dist_mac/AppContent/
+          find rust/target/release -name "*.dylib*" -exec cp {} dist_mac/AppContent/ \;
           brew install --quiet create-dmg
-          create-dmg \
-            --volname "Transparente IA" \
-            "dist_mac/transparente_rust_macos.dmg" \
-            "dist_mac/AppContent/"
-
+          create-dmg --volname "Transparente IA" "dist_mac/transparente_rust_macos.dmg" "dist_mac/AppContent/"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: transparente_rust-macos-universal
+          name: transparente_rust-macos
           path: dist_mac/*.dmg
