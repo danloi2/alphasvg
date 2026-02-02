@@ -1,4 +1,4 @@
-# FondoTransparente
+# AlphaSVG
 
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/danloi2/transparente?style=flat-square&color=blue)
 ![Python Version](https://img.shields.io/badge/python-3.11-blue?style=flat-square&logo=python)
