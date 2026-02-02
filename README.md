@@ -5,12 +5,7 @@
 ![Rust Version](https://img.shields.io/badge/Rust-1.93.0-blue?style=flat-square&logo=rust)
 ![OpenCV](https://img.shields.io/badge/OpenCV-5.x-white?style=flat-square&logo=opencv&logoColor=white&color=5C3EE8)
 ![ONNX Runtime](https://img.shields.io/badge/ONNX-Runtime-orange?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-
-
-# AlphaSVG 🚀
-
-    
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)    
 
 **AlphaSVG** is a Rust-powered background removal and vectorization toolkit that transforms any photo into production-ready transparent SVGs. Using state-of-the-art ONNX models (17+ variants: U2Net, BiRefNet, SAM, Bria-RMBG) with automatic caching, it generates crisp alpha masks via AI inference, then offers **5 artistic SVG styles**: color logos (16 hues), rich illustrations (48 hues), posterized grayscale, classic halftone dots, and clean lineart contours—all leveraging Potrace for pixel-perfect vector paths.
 
