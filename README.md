@@ -99,7 +99,13 @@ Download [v1.0.0](https://github.com/danloi2/alphasvg/releases/tag/v1.0.0) for m
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-***
+## 👥 Author
 
-**Made with ❤️ by [Daniel Losada](https://github.com/danloi2) @ UPV/EHU**  
-[
+**Developed by Daniel Losada**
+
+[![GitHub](https://img.shields.io/badge/GitHub-danloi2-181717?style=for-the-badge&logo=github)](https://github.com/danloi2)
+[![Researcher EHU](https://img.shields.io/badge/Researcher-EHU-blue?style=for-the-badge&logo=researchgate)](https://github.com/danloi2)
+
+---
+
+_Developed with ❤️ for the educational community._
